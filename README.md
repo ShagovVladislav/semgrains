@@ -6,10 +6,10 @@
 
 Нужны **Windows 10/11 x64**, Git и интернет при первом запуске.
 
-Замените `<URL-репозитория>` настоящим адресом и выполните в PowerShell:
+Выполните в PowerShell:
 
 ```powershell
-git clone <URL-репозитория> semgrains
+git clone https://github.com/ShagovVladislav/semgrains.git
 cd semgrains
 .\run.cmd
 ```
