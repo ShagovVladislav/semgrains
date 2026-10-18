@@ -1,0 +1,29 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><style>
+body{margin:0;font:14px system-ui;color:#163047;background:#fff} .bar{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0}button{border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;padding:7px 12px;cursor:pointer;color:#163047}button:hover{background:#e0f2fe}button.active{background:#0f766e;color:white}canvas{width:100%;height:auto;display:block;cursor:crosshair;border:1px solid #cbd5e1;touch-action:none}#status{margin:7px 0;min-height:20px} .hint{color:#64748b;font-size:12px}
+</style></head><body><div id="toolbar"></div><div id="status"></div><canvas id="canvas"></canvas><div class="hint" id="hint"></div><script>
+const cv=document.getElementById('canvas'),ctx=cv.getContext('2d');
+let args={},img=new Image(),labels=null,selected=[],line=[],drawing=false,mode='select',polygons=[],ignored=[],current=[],revision=null;
+function send(type,data={}){window.parent.postMessage({isStreamlitMessage:true,type,...data},'*')}
+function emit(data){send('streamlit:setComponentValue',{value:{...data,nonce:Date.now()+Math.random()},dataType:'json'})}
+function resize(){send('streamlit:setFrameHeight',{height:document.body.scrollHeight+8})}
+function button(text,fn){const b=document.createElement('button');b.textContent=text;b.onclick=fn;return b}
+function toolbar(){const t=document.getElementById('toolbar');t.innerHTML='';t.className='bar';
+if(args.annotation){
+ t.append(button('Контур зерна',()=>{mode='grain';current=[];draw()}),button('Неопределённая область',()=>{mode='ignore';current=[];draw()}),button('Замкнуть контур',finish),button('Удалить последний контур',()=>{if(mode==='ignore')ignored.pop();else polygons.pop();draw()}),button('Передать разметку',()=>{if(current.length>=3)finish();emit({type:'annotation',polygons,ignored})}));
+ document.getElementById('hint').textContent='Кликайте вершины контура по исходному изображению. Замкните контур кнопкой или Enter. Escape отменяет текущий контур. Зерна рисуются независимо от автоматического результата.';
+}else{
+ t.append(button('Выбор зёрен',()=>{mode='select';draw()}),button('Линия разделения',()=>{mode='line';draw()}),button('Объединить',()=>emit({type:'merge',ids:selected})),button('Исключить',()=>emit({type:'exclude',ids:selected})),button('Разделить',()=>emit({type:'split',ids:selected,points:line})),button('Снять выбор',()=>{selected=[];line=[];draw()}));
+ document.getElementById('hint').textContent='Клик по зерну выбирает его ID. Для разделения выберите одно зерно, включите линию и проведите её через оба края. Автоматическая маска сохраняется отдельно.';
+}}
+function path(points,color,fill=false){if(!points.length)return;ctx.beginPath();ctx.moveTo(...points[0]);for(const p of points.slice(1))ctx.lineTo(...p);if(fill)ctx.closePath();ctx.strokeStyle=color;ctx.lineWidth=Math.max(1.3,cv.width/500);ctx.stroke();if(fill){ctx.fillStyle=color+'30';ctx.fill()}}
+function draw(){if(!img.complete)return;ctx.clearRect(0,0,cv.width,cv.height);ctx.drawImage(img,0,0);if(labels&&selected.length){const data=ctx.getImageData(0,0,cv.width,cv.height);const set=new Set(selected);for(let i=0;i<labels.length;i++)if(set.has(labels[i])){data.data[i*4]=Math.round(.55*data.data[i*4]+.45*255);data.data[i*4+2]=Math.round(.55*data.data[i*4+2]+.45*255)}ctx.putImageData(data,0,0)}
+for(const p of polygons)path(p,'#00dc9a',true);for(const p of ignored)path(p,'#ff9d00',true);path(current,mode==='ignore'?'#ff9d00':'#00dc9a');path(line,'#ff35d0');
+document.getElementById('status').textContent=args.annotation?`Зёрен: ${polygons.length}, неопределённых областей: ${ignored.length}. Режим: ${mode==='ignore'?'неопределённость':'контур зерна'}`:`Выбраны ID: ${selected.join(', ')||'нет'}. Режим: ${mode==='line'?'линия':'выбор'}`;resize()}
+function point(e){const r=cv.getBoundingClientRect();return [Math.max(0,Math.min(cv.width-1,(e.clientX-r.left)*cv.width/r.width)),Math.max(0,Math.min(cv.height-1,(e.clientY-r.top)*cv.height/r.height))]}
+function finish(){if(current.length<3)return;(mode==='ignore'?ignored:polygons).push(current);current=[];draw()}
+cv.onpointerdown=e=>{const p=point(e);if(args.annotation){current.push(p);draw();return}if(mode==='select'){const id=labels?.[Math.floor(p[1])*cv.width+Math.floor(p[0])];if(id>0){if(selected.includes(id))selected=selected.filter(x=>x!==id);else selected.push(id)}draw()}else{drawing=true;line=[p];cv.setPointerCapture(e.pointerId)}};
+cv.onpointermove=e=>{if(drawing){line.push(point(e));draw()}};cv.onpointerup=e=>{if(drawing){line.push(point(e));drawing=false;draw()}};
+window.addEventListener('keydown',e=>{if(e.key==='Enter'&&args.annotation)finish();if(e.key==='Escape'){current=[];line=[];draw()}});
+window.addEventListener('message',e=>{if(e.data.type!=='streamlit:render')return;args=e.data.args;if(revision!==args.revision){revision=args.revision;selected=[];line=[];current=[];polygons=args.polygons||[];ignored=args.ignored||[];mode=args.annotation?'grain':'select'}cv.width=args.width;cv.height=args.height;labels=null;if(args.labels){const s=atob(args.labels),bytes=new Uint8Array(s.length);for(let i=0;i<s.length;i++)bytes[i]=s.charCodeAt(i);labels=new Uint32Array(bytes.buffer)}toolbar();img.onload=()=>{draw();resize()};img.src=args.image;});
+send('streamlit:componentReady',{apiVersion:1});window.addEventListener('resize',resize);
+</script></body></html>

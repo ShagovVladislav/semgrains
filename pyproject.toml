@@ -1,0 +1,21 @@
+[project]
+name = "semgrains"
+version = "1.0.0"
+description = "Segmentation and measurement of grains in SEM images"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "numpy==2.5.4",
+    "scipy==1.18.1",
+    "scikit-image==0.26.0",
+    "opencv-python-headless==5.0.0.93",
+    "pillow==12.3.0",
+    "pandas==3.0.6",
+    "matplotlib==3.11.2",
+    "streamlit==1.66.0",
+    "tifffile==2026.10.15",
+]
+
+[tool.uv]
+package = false
+environments = ["sys_platform == 'win32' and platform_machine == 'AMD64'"]
